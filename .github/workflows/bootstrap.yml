@@ -1,0 +1,46 @@
+name: Bootstrap public research inputs
+on:
+  push:
+    paths: ['.github/workflows/bootstrap.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inputs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch official public inputs
+        run: |
+          mkdir -p inputs
+          curl --fail --location --retry 3 https://archive.ics.uci.edu/static/public/310/ujiindoorloc.zip -o inputs/ujiindoorloc.zip
+          git clone https://github.com/BorealisAI/constant-memory-anp.git inputs/constant-memory-anp
+          git -C inputs/constant-memory-anp rev-parse HEAD | tee inputs/upstream_commit.txt
+          rm -rf inputs/constant-memory-anp/.git
+          sha256sum inputs/ujiindoorloc.zip | tee inputs/checksums.txt
+      - name: Audit UJI without fitting any model
+        run: |
+          python -m pip install numpy pandas
+          python - <<'PY'
+          import zipfile, pandas as pd, json, hashlib
+          z=zipfile.ZipFile('inputs/ujiindoorloc.zip')
+          reports={}
+          for n in z.namelist():
+              if not n.endswith('.csv'): continue
+              content=z.read(n);d=pd.read_csv(z.open(n))
+              reports[n]={'sha256':hashlib.sha256(content).hexdigest(),'shape':list(d.shape),'domains':[]}
+              for (b,f),g in d.groupby(['BUILDINGID','FLOOR']):
+                  xy=g[['LONGITUDE','LATITUDE']].drop_duplicates()
+                  reports[n]['domains'].append({'building':int(b),'floor':int(f),'rows':len(g),'positions':len(xy),'phones':sorted(map(int,g.PHONEID.unique())),'users':sorted(map(int,g.USERID.unique())),'time_min':int(g.TIMESTAMP.min()),'time_max':int(g.TIMESTAMP.max()),'xy_range':(xy.max()-xy.min()).tolist()})
+          open('inputs/audit.json','w').write(json.dumps(reports,indent=2))
+          print(json.dumps(reports,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-research-inputs
+          path: inputs
+          retention-days: 7
