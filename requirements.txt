@@ -1,0 +1,8 @@
+numpy>=1.24,<3
+pandas>=2.0,<3
+scipy>=1.10,<2
+PyYAML>=6,<7
+einops>=0.6,<1
+pytest>=8,<10
+# Install torch separately for the desired CUDA/CPU backend; tested with torch 2.10.0+cpu.
+torch>=2.2,<3

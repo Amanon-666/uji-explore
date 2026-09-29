@@ -1,0 +1,16 @@
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+SPDX-License-Identifier: CC-BY-NC-SA-4.0
+
+Research additions in this repository are provided under CC BY-NC-SA 4.0.
+The full license text is incorporated by reference:
+https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode.en
+
+The pinned upstream CMANP implementation is Copyright (c) 2024-present,
+Royal Bank of Canada, all rights reserved, distributed under its original
+CC BY-NC-SA 4.0 license. Its original notices and full LICENSE are retained
+when downloaded by scripts/fetch_upstream.py and in the conversation ZIP.
+Upstream: https://github.com/BorealisAI/constant-memory-anp
+Commit: 8961cd940153d76918f401acc60aa858101a8949
+
+UJIIndoorLoc data have their own CC BY 4.0 license. See data/DATA_SOURCE.json.
+No blanket MIT license or commercial-use permission is granted here.
