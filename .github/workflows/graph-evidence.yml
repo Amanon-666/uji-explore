@@ -1,0 +1,54 @@
+name: Graph research evidence
+on:
+  push:
+    branches: [research/gconvloc-jprl-uegloc-20260930]
+    paths: [.github/workflows/graph-evidence.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download public evidence without executing upstream code
+        run: |
+          mkdir -p evidence
+          git archive --format=tar.gz HEAD > evidence/base-repository.tar.gz
+          python - <<'PY'
+          import urllib.request, pathlib, json, hashlib
+          root = pathlib.Path('evidence')
+          urls = {
+            'ujiindoorloc.zip': 'https://archive.ics.uci.edu/static/public/310/ujiindoorloc.zip',
+            'gconvloc.pdf': 'https://www.jstage.jst.go.jp/article/transinf/E106.D/4/E106.D_2022EDL8081/_pdf',
+            'uegloc.pdf': 'https://dl.acm.org/doi/pdf/10.1145/3820501',
+            'jprl.html': 'https://link.springer.com/article/10.1007/s00521-023-08520-1',
+            'gconvloc-repository.json': 'https://api.github.com/repos/dongdokee/GConvLoc',
+          }
+          report = {}
+          for name,url in urls.items():
+            try:
+              req = urllib.request.Request(url, headers={'User-Agent':'uji-explore-research/1.0'})
+              with urllib.request.urlopen(req, timeout=90) as response:
+                data = response.read()
+                report[name] = {'url':url, 'status':response.status, 'content_type':response.headers.get('Content-Type'), 'sha256':hashlib.sha256(data).hexdigest(), 'bytes':len(data)}
+              (root/name).write_bytes(data)
+            except Exception as exc:
+              report[name] = {'url':url, 'error':str(exc)}
+          (root/'download-status.json').write_text(json.dumps(report, indent=2))
+          print(json.dumps(report, indent=2))
+          if not (root/'ujiindoorloc.zip').exists():
+            raise SystemExit('Official dataset download failed; no synthetic replacement permitted.')
+          PY
+      - name: Download PyG wheel for offline testing
+        run: python -m pip download --no-deps torch-geometric==2.6.1 -d evidence/wheels
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: graph-research-evidence
+          path: evidence/
+          retention-days: 7
