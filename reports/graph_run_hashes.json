@@ -1,0 +1,66 @@
+{
+  "gconvloc_cnnloc_s0": {
+    "frozen_sha256": "37f6bde985ae650ad111f4fbf47c2a522ca8d88a7e7116b3e180d0905057bcdb",
+    "checkpoint_sha256": {
+      "best.pt": "32804d891e0eea1e8c300d8f66d6fd175d7a564aa6e5621b64b224c4728361c5"
+    },
+    "metrics_sha256": "cb7c52f5ccc5f9692efa4106533bc59a63101578112521c9f7b37a5cb3e32859",
+    "predictions_sha256": "6b8b37339038b1aed593483adc0fe0922c5ee9b5882c72cf32178610c1ed6040"
+  },
+  "gconvloc_floor3_s0": {
+    "frozen_sha256": "e29255e331647e11b9011ff684a7b2605196fb69357a301d47c14234d4e11f82",
+    "checkpoint_sha256": {
+      "best.pt": "deca994903fb7b695c86fc19c87e6e62d00dfd501553cb6742d44fbdfb84a6f7"
+    },
+    "metrics_sha256": "6a7fb97f9681b7dd85d3aa2d1d8c558de5b7af50a2e1ca7b3e27b3345fe28c6e",
+    "predictions_sha256": "f26aef27c3620f5ed40339adcbffba7bd06bd5840dbbe3ca5eb50abd097216f3"
+  },
+  "jprl10k_f0_s0": {
+    "frozen_sha256": "c2a7ac17db422b277cd3a4bece1007a9f6d68ddaacdb97b1b662dea21cef7ac3",
+    "checkpoint_sha256": {
+      "lambda_0.1/best.pt": "0372099fb3e91a48fa02262d375a39bcfb0a46a708c4b54801756653bd4f577f",
+      "lambda_10/best.pt": "b983f03c35e24d894b1ec2d1b6c721ee59d94368bddb99750cff9a047622ef65",
+      "lambda_1000/best.pt": "6b8409beb1e64c06bf86d9af52f42ae9ad9c7ccb53c8c5b72672b833dff67d8e",
+      "lambda_0.001/best.pt": "00d844b3e5ea3599407190cf94047e5ac9ac115581445e0dbe871a9a35bec4b5",
+      "lambda_0/best.pt": "6e56934aa5866872839dc3ecc5bd193046e50616acd7fa16f89c40a18877c619"
+    },
+    "metrics_sha256": "7055b85c39e2e4cddaab9db29bf815e56c41c977facd0976a9aa4919cc78248a",
+    "predictions_sha256": "a5b62758488e04f1a224bba86b76213a8a333b749b9b3d4e2583442209374ad6"
+  },
+  "jprl10k_f1_s0": {
+    "frozen_sha256": "09b6f3dc26b33ab213ec75d0440b9e15432ec415df229edc3e03000eb0ff677c",
+    "checkpoint_sha256": {
+      "lambda_0.1/best.pt": "ddaac49c71b3fe39e24f64cf69c91a5601d0b64502d3fe9421de9370930c213a",
+      "lambda_10/best.pt": "dbfcb9cf5c9613a844e80ed7df19ce49809fb606cc72451e5b596d5e3d56aabb",
+      "lambda_1000/best.pt": "d79febdabee8cc3c7772a3fa273d58ece5620243489787b42a6108c3cca523c8",
+      "lambda_0.001/best.pt": "b6b0a9f7a18ab852cf7a86e3aa62ae570e59aa6440694ec4889beb153ba38807",
+      "lambda_0/best.pt": "d3524d93d5cb73d219a1cf7e3ee5e8cd35b385519951dc99a227f0babb1dcc1e"
+    },
+    "metrics_sha256": "8eb57b43bfffa8278475ddba4533824080ee8d2ae5835c9898a7c8949d0fa3dd",
+    "predictions_sha256": "3f3516d2913a71ab7c9379d57cf6a685986365d632d0b04a2bb86f55e64e8f02"
+  },
+  "jprl10k_f2_s0": {
+    "frozen_sha256": "dd00b44e7c395bbd2dd84b0c65ad4f0198d9bb5b9931a9cdaa830ebe526e8ec9",
+    "checkpoint_sha256": {
+      "lambda_0.1/best.pt": "c7e020912e9f05cc8206ceebfa9284b956891c443334cd9f2c3e03c89d9949a2",
+      "lambda_10/best.pt": "1ef0b76c189b282a424417b627b4ecbd61803eba0a34d095a623028aa17cc9ae",
+      "lambda_1000/best.pt": "f16739d533cdeb9763377e67b10c3866d08be9b8efa646c8734143d93f40ec64",
+      "lambda_0.001/best.pt": "42b2e88504eafd352a2ba6a035c216715ec93e1126b1c01219ad4d63c78a56ff",
+      "lambda_0/best.pt": "850404484759aa89d73d899396d8ff7c1cd81a1fdd5881f9657b3871fa5b881f"
+    },
+    "metrics_sha256": "f7db9b1c3acc90e29dcc9ce3def608110c26c430f031577f6e3d15ca490395d2",
+    "predictions_sha256": "8400e8e8d07ec7757233041b531fc0f159c3109956aa597b558212d8f68839b9"
+  },
+  "jprl10k_f3_s0": {
+    "frozen_sha256": "f3eecb0a3535342d91086e7ce48b51401ce5c925eeee68871c209d29ca30cfc6",
+    "checkpoint_sha256": {
+      "lambda_0.1/best.pt": "30afaed5fdb113ee9b110fdaada93033c7124c40fd8fb77c49ad1ee39c4d4c20",
+      "lambda_10/best.pt": "55af1f5a4fdb55c3c1057afd74424eecfbad9baff7435d4220c45fe57b85e2c6",
+      "lambda_1000/best.pt": "13667a8017daff430bbbbb9b6b8185e95bc67e2e57a87b41ab292b5cd2b7cf18",
+      "lambda_0.001/best.pt": "33210917bdd0292c9f458f543b1d98b0cb955453d692d56419dfa46f019883b6",
+      "lambda_0/best.pt": "89b22c27fa968791cab9c84cd449ae8b4b0d34ca860c5180c079da0c3e9bf53c"
+    },
+    "metrics_sha256": "fa03026a45c8bfebe188f9a2f91b3cfd37cebc9c16c795d20cfaff0355dc1705",
+    "predictions_sha256": "94b009cf2f9e67de7be6f27e7c9512edb30b996b5fab1ed025e50d8d75cd3e31"
+  }
+}

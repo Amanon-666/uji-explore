@@ -1,129 +1,92 @@
-# UJI 跨楼层 few-shot：CMANP 复现与可审计实验基线
+# UJI 图定位研究分支：GConvLoc 主线
 
-**版本：v0.1；建立日期：2026-09-29。** 主线为 ICML 2024 的 **CMANP**，直接复用作者公开代码，不把普通 MLP 冒充元学习实现。
+**实测 GConvLoc 标准 UJI 测试 7.606 m，论文 7.59 m；完整留出 FLOOR=3 的零样本扩展 12.801 m。** 这是单种子独立重实现，不是恢复作者源码，也不代表 JPRL / UE-GLoc 全部复现成功。
 
-> **交付状态：代码、协议、29 项测试、完整 UJI CPU pilot 已运行；原文 100,000 步 × 5 种子数值复现及正式 UJI 多种子实验尚未完成。**
-> pilot 中 CMANP 未优于 10/20-shot 的传统/微调基线，不能据此称它为 UJI SOTA。所有结果都标记 `pilot` 或 `smoke`，没有把调试运行包装成论文复现。
+分支：`research/gconvloc-jprl-uegloc-20260930`。原有 CMANP 程序保留不动，其使用说明完整保存在 [README_CMANP.md](README_CMANP.md)。本研究使用独立模块和依赖文件，建议使用新虚拟环境。
 
-## 从哪里开始
+先读 [实际结果](reports/GRAPH_RESULTS.md) 和 [原文、公开代码与参数审计](docs/GRAPH_REPRODUCTION_AUDIT.md)。
 
-先读 [研究设计](docs/RESEARCH_DESIGN.md)，再读 [实测结果与边界](reports/RESULTS.md)。参数来源见 [参数登记表](docs/PARAMETER_PROVENANCE.md)，原文与代码的对应、差异见 [复现审计](docs/REPRODUCTION_AUDIT.md)。
-
-论文：**Memory Efficient Neural Processes via Constant Memory Attention Block**，ICML 2024，PMLR 235:13365–13386。
-
-- 正式论文入口：<https://proceedings.mlr.press/v235/feng24i.html>
-- 全文：<https://arxiv.org/pdf/2305.14567>
-- 官方代码：<https://github.com/BorealisAI/constant-memory-anp>
-- 固定提交：`8961cd940153d76918f401acc60aa858101a8949`
-
-ICML 是 CCF A 类会议；按正式发表时间 2024 年计算，满足本项目“近三年”的筛选口径。**这篇论文研究通用小样本回归，不是无线定位论文，原文没有 UJI 跨楼层成绩。** 原文的高指标不能直接换算成本项目的定位误差。
-
-## 核心问题
-
-先看其他楼层的历史数据，到了一个训练时没见过的楼层，只知道 **5、10 或 20 个位置各一次扫描的 RSSI 和坐标**，能否预测该楼层其他位置的二维坐标？
-
-CMANP 的方法是：历史楼层上学习“如何利用几条已知样本来预测其他样本”；新楼层的支持样本直接进入网络作为条件。**不进行 MAML 式内循环梯度更新，条件化也属于少样本适应。** 代码另提供 MLP 微调，用真实梯度步骤作对照。
-
-## 安装与运行
-
-建议 Python 3.11。在仓库根目录运行：
+## 安装与数据准备
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-python -m pip install -r requirements.txt
-python scripts/fetch_upstream.py   # 已含完整 third_party 时仅校验，不重复下载
-python -m pytest -q
+git clone --branch research/gconvloc-jprl-uegloc-20260930 https://github.com/Amanon-666/uji-explore.git
+cd uji-explore
+python3.13 -m venv .venv-graph
+source .venv-graph/bin/activate
+python -m pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -r requirements-graph.txt
+python -m graph_repro.prepare
+python -m pytest -q graph_tests
 ```
 
-PyTorch 的 CPU/CUDA 版本按机器环境安装。本次实测环境为 CPU、PyTorch 2.10.0；GPU 路径未在本次环境实测。依赖的精确实测版本见 `requirements-tested.txt`。GitHub 通过固定提交下载上游、通过固定哈希下载数据；对话压缩包已经包含二者。
+`prepare` 从 UCI 下载数据并校验 ZIP/CSV SHA256，再从固定 CNNLoc 提交恢复作者发布的 2,132 条内部开发样本。官方 1,111 条 validation 保持外部测试角色。生成的 `data/raw/graph/cnnloc_split_audit.json` 含完整开发行号；不依赖对话中的临时文件。
 
-**先做工程检查：**
+## 复跑常规定位：先开发，后冻结测试
 
 ```bash
-bash scripts/run_smoke.sh runs/my_smoke
+python -m graph_repro.run --data data/raw/graph \
+  --out graph_runs/gconvloc_cnnloc_s0 --dev-split cnnloc \
+  --seed 0 --epochs 2000 --patience 200 --phase develop
+
+python -m graph_repro.run --data data/raw/graph \
+  --out graph_runs/gconvloc_cnnloc_s0 --phase test --allow-test
 ```
 
-**正式 UJI 全流程：**
+上面是产生 7.605711 m 结果的预算。模型只由内部开发集选定。已有 `FROZEN.json` 的目录不能继续开发；已有 `TEST_EVALUATED.json` 的目录不能重新评分。重新做独立实验请使用新目录并事先确定协议，不能通过新建目录隐瞒测试调参。
+
+## 复跑真正的未见楼层实验
 
 ```bash
-bash scripts/run_full.sh runs/full_v1 cuda
+python -m graph_repro.run --data data/raw/graph \
+  --out graph_runs/gconvloc_floor3_s0 --protocol floor-dg --target 3 \
+  --dev-split cnnloc --seed 0 --epochs 1000 --patience 150 --phase develop
+
+python -m graph_repro.run --data data/raw/graph \
+  --out graph_runs/gconvloc_floor3_s0 --protocol floor-dg --target 3 \
+  --phase test --allow-test
 ```
 
-该命令依次准备数据与冻结划分、在开发楼层选择停止点和基线参数、用十个源楼层重新训练、执行跨楼层测试、执行共同采集群体限制下的 5-shot 对照，并生成逐楼层、宏平均和配对差值。正式配置有 5 个模型种子和最多 100,000 次更新；这不是短跑检查。
+这里只用原始 FLOOR=0/1/2 训练，FLOOR=3 完全留出；FLOOR=4 不参与四域协议。每个原始楼层域横跨多栋建筑。这不是单独的 13 个 building-floor 任务，不是跨建筑 few-shot，也不是 UE-GLoc。
 
-**分步运行或断点恢复：**
+`--protocol building-dg --target 0/1/2` 提供整栋建筑留出接口，但本次没有运行并报告其结果。普通训练入口不含“给目标层几条标签再适应”的流程。
+
+## JPRL：单独的原公式重实现
 
 ```bash
-python -m uji.run prepare --out runs/full_v1 --profile full
-python -m uji.run develop --out runs/full_v1 --device cuda
-# 中断时仅恢复同一配置、同一划分、同一代码版本：
-python -m uji.run develop --out runs/full_v1 --device cuda --resume
-python -m uji.run final --out runs/full_v1 --device cuda --allow-test
-python -m uji.run final --out runs/full_v1 --device cuda --allow-test --matched
-python scripts/report.py --out runs/full_v1
+for t in 0 1 2 3; do
+  python -m graph_repro.jprl --data data/raw/graph \
+    --out graph_runs/jprl10k_f${t}_s0 --target "$t" \
+    --steps 10000 --patience 2000 --seed 0 --phase develop || exit
+done
+
+# 全部任务开发与选参完成后，再打开目标评估。
+for t in 0 1 2 3; do
+  python -m graph_repro.jprl --data data/raw/graph \
+    --out graph_runs/jprl10k_f${t}_s0 --target "$t" \
+    --phase test --allow-test || exit
+done
 ```
 
-不要先跑完整脚本再重复 prepare 到同一个目录。首次最终测试需显式 `--allow-test`；查看测试结果后程序阻止在同一目录继续开发调参。文件标记用于审计，不是防止人为删改的安全沙箱。
+每个任务运行四个原文 lambda 候选和一个同骨干 ERM。当前 JPRL 四域等权平均 31.915 m，没有看到相对 ERM 的明显改善。归一化 MAE 之和 0.123353 不能与原文不同文件合并协议的 0.114 直接等同。更差的外部压力测试也完整保留。没有把同作者 JPDA 仓库误标成 JPRL。
 
-## 原文复现单独运行
+## 已训模型推理与档案
+
+完整训练权重、逐样本预测与日志已作为对话 ZIP 交付。将其中的 `graph_runs/` 放到项目根目录后，可直接使用：
 
 ```bash
-python scripts/reproduce_gp.py --out runs/original_gp \
-  --steps 100000 --seeds 0 1 2 3 4 --eval-batches 3000 \
-  --kernel-spec code --device cuda
+python -m graph_repro.predict --data data/raw/graph \
+  --checkpoint graph_runs/gconvloc_cnnloc_s0/best.pt \
+  --query your_fingerprints.csv --out predicted_coordinates.csv
 ```
 
-原文表 4 的 **CMANP**（不是 CMANP-AND）目标为 RBF 对数似然 **1.24 ± 0.01**、Matern 5/2 **0.80 ± 0.01**。论文正文与代码的 GP 长度尺度范围不同，详见复现审计。`--kernel-spec paper` 是独立敏感性检查，不能与 `code` 混报。
+查询 CSV 只需 `WAP001` 到 `WAP520`，缺失写 100；无需查询坐标标签。输出 UJI 原坐标系中的 `pred_LONGITUDE`、`pred_LATITUDE`。
 
-## 实验内容
+完整跨层运行也可从 [GitHub Actions](https://github.com/Amanon-666/uji-explore/actions/runs/36673143102) 的 `graph-cross-floor-results` 下载，保留 30 天。该 artifact 只包含跨层模型，标准模型及 JPRL 候选在对话完整包或按上述命令重训获取。
 
-|实验|回答的问题|数据与标签预算|
-|---|---|---|
-|Primary|未见整层如何少样本定位新位置？|trainingData 内整层留出；每层 5/10/20 个不同位置、各一次扫描|
-|Matched-cohort restriction|限制设备、用户、日期重叠后如何？|共同 `(PHONEID, USERID, UTC日期)` 群体；每层 5 条标签|
-|External stress|更晚采集、混合设备的新位置如何？|validationData 仅外部压力测试；排除目标训练位置的精确重复坐标|
+## 模块与边界
 
-Matched 只限制共同群体，未完全平衡群体比例、小时与路径，不代表纯空间变化的因果效应。外部测试也不是纯跨楼层。
+`graph_repro/core.py`：GAT、图构造、JPRL L2 损失、预处理与单位明确的指标。`run.py`：标准/整层/整栋建筑留出。`jprl.py`：源域独立选参和 ERM 对照。`prepare.py`：来源与数据划分审计。`predict.py`：无标签查询推理。`graph_tests/`：11 项等价性、梯度、单位、隔离测试。
 
-## 固定空间划分
+所有缩放统计与图参考节点来自 source-fit。设备、用户、时间、建筑号、楼层号不输入坐标网络，元数据仅用于划分/审计。图不读取查询标签，不允许查询反向改变参考节点，也不允许查询间传消息。
 
-```text
-开发拟合 7 层：B0F0 B0F1 | B1F0 B1F1 | B2F0 B2F1 B2F2
-开发选择 3 层：B0F2      | B1F2      | B2F3
-最终目标 3 层：B0F3      | B1F3      | B2F4
-冻结后重训：上面的 7 + 3 = 10 个源楼层
-```
-
-每个目标楼层按精确坐标分组，固定约 30% 位置为查询，其余为支持池。不同 K 使用嵌套支持集与相同查询。禁止同位置重复扫描跨越两侧；不使用隐藏坐标优化支持点覆盖。
-
-模型输入是 UJI 的同一套 520 个 WAP 身份列。PHONEID、USERID、TIMESTAMP、SPACEID、RELATIVEPOSITION 不进入网络；已知建筑编号只选择源数据拟合的坐标变换。本版不解决未见建筑的任意新 AP 编号。
-
-## 输出与已有结果
-
-运行生成 FROZEN.json、learning_curve.jsonl、episode_metrics.csv、floor_metrics.csv、macro_metrics.csv 和逐查询预测。支持集和模型种子重采样得到的区间固定这 3 个楼层，不能代表任意新楼层总体。覆盖诊断中的隐藏坐标不参与训练和选点。
-
-主 pilot 的三楼层宏平均 MDE（UJI 平面坐标米制口径）：
-
-|方法|5-shot|10-shot|20-shot|
-|---|---:|---:|---:|
-|CMANP|25.49|25.50|25.49|
-|WKNN，开发选择 k=1|27.66|19.34|18.75|
-|RBF 核回归|28.75|19.80|18.25|
-|Source-only MLP，实际 0 标签|23.99|23.99|23.99|
-|MLP-FT，固定 50 步|20.97|16.63|15.82|
-
-这些来自 1 个模型种子、2 个支持种子、CMANP 300 步与 MLP 100 步，只是 pilot。不能称为 SOTA 或正式复现成功。完整逐样本记录、冻结清单、原始数据和 pilot 权重见本次对话交付 ZIP；仓库只保留可运行源码、来源锁定、设计、测试和结果摘要。
-
-推理接口：
-
-```bash
-python scripts/predict.py --checkpoint exports/cmanp_pilot.pt \
-  --support support.csv --query query.csv --building 0 --output predictions.csv
-```
-
-support.csv 需要 WAP001…WAP520 和 LONGITUDE/LATITUDE；query.csv 只需 WAP 列。ZIP 内 exports 仅为未收敛 pilot 权重，不能部署为已验证定位服务。导出推理权重使用 weights_only=True；训练 checkpoint 只加载受信任文件。
-
-## 许可
-
-上游 CMANP 和本项目研究新增代码为 CC BY-NC-SA 4.0；原始署名保留。UJI 数据为 CC BY 4.0。完整许可与上游归属见 LICENSE 及其链接、data/DATA_SOURCE.json。不得整体标为 MIT 或暗示未经授权的商业使用许可。
+UE-GLoc 原文和代码尚未取得充分核验，因此当前没有 UE-GLoc 模型。方法出处、所有未明参数与协议变更详见审计文档。研究代码遵守原仓库许可，第三方库和 UJI 数据分别保留原许可。

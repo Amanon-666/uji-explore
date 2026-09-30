@@ -7,3 +7,5 @@ data/raw/
 *.pt
 *.tmp
 third_party/constant-memory-anp/
+graph_runs/
+graph_repro/cnnloc_dev_ids.json
