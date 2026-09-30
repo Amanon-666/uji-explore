@@ -1,0 +1,52 @@
+name: Graph reproduction and cross-floor check
+on:
+  push:
+    branches: [research/gconvloc-jprl-uegloc-20260930]
+    paths:
+      - graph_repro/**
+      - graph_tests/**
+      - requirements-graph.txt
+      - .github/workflows/graph-reproduction.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verified-cross-floor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: requirements-graph.txt
+      - name: Install pinned CPU dependencies
+        run: |
+          python -m pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements-graph.txt
+      - name: Verify official data and recover author source split
+        run: python -m graph_repro.prepare
+      - name: Test operator parity, gradients, units and isolation
+        env:
+          OMP_NUM_THREADS: '2'
+          OPENBLAS_NUM_THREADS: '2'
+        run: python -m pytest -q graph_tests
+      - name: Frozen cross-floor experiment (extension, not original paper score)
+        env:
+          OMP_NUM_THREADS: '2'
+          OPENBLAS_NUM_THREADS: '2'
+        run: |
+          python -m graph_repro.run --data data/raw/graph --out graph_runs/gconvloc_floor3_s0 --protocol floor-dg --target 3 --epochs 1000 --patience 150 --dev-split cnnloc --seed 0 --phase all --allow-test
+          git rev-parse HEAD > graph_runs/source-commit.txt
+          python -m pip freeze > graph_runs/environment.txt
+          git archive --format=tar.gz HEAD > graph_runs/source.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: graph-cross-floor-results
+          path: |
+            graph_runs/
+            data/raw/graph/dataset_audit.json
+            data/raw/graph/cnnloc_split_audit.json
+          retention-days: 30
