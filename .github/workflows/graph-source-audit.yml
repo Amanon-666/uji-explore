@@ -1,0 +1,43 @@
+name: Graph source split audit
+on:
+  push:
+    branches: [research/gconvloc-jprl-uegloc-20260930]
+    paths: [.github/workflows/graph-source-audit.yml]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch published source split files
+        run: |
+          python - <<'PY'
+          import urllib.request, json, pathlib, hashlib
+          root=pathlib.Path('split_evidence');root.mkdir()
+          base='https://raw.githubusercontent.com/XudongSong/CNNLoc/ec8d6001289a1239e21b23b87d52f16e1086d43f/'
+          tree=json.load(urllib.request.urlopen('https://api.github.com/repos/XudongSong/CNNLoc/git/trees/ec8d6001289a1239e21b23b87d52f16e1086d43f?recursive=1'))
+          (root/'tree.json').write_text(json.dumps(tree,indent=2))
+          report=[]
+          for v in tree['tree']:
+              path=v['path']
+              if not path.startswith('UJIIndoorLoc_codes/') or not path.endswith('.csv'):continue
+              if path.split('/')[-1] not in ['arrAllTrainingData.csv','AllValuationData.csv','trainingData.csv','validationData.csv']:continue
+              entry={'path':path,'git_blob':v['sha'],'url':base+path}
+              try:
+                  data=urllib.request.urlopen(base+path,timeout=60).read()
+                  (root/path.split('/')[-1]).write_bytes(data)
+                  entry.update(bytes=len(data),sha256=hashlib.sha256(data).hexdigest())
+              except Exception as exc:entry['error']=str(exc)
+              report.append(entry)
+          (root/'manifest.json').write_text(json.dumps(report,indent=2))
+          print(json.dumps(report,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: graph-source-split-evidence
+          path: split_evidence/
+          retention-days: 7
