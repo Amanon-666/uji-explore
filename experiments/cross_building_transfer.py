@@ -145,8 +145,22 @@ def transfer_gp(s: pd.DataFrame, t: pd.DataFrame, q: pd.DataFrame, mode: str):
     for name,rho in [("target_gp",0.0),("pooled_residual_gp",1.0),
                      ("transfer_evidence_gp",chosen)]:
         error=np.linalg.norm(results[rho]-actual,axis=1)
+        position_mean=float(pd.Series(error,index=q.pos.to_numpy()).groupby(level=0).mean().mean())
         metrics[name]={"mean":float(error.mean()),"median":float(np.median(error)),
-                       "p90":float(np.quantile(error,.90))}
+                       "p90":float(np.quantile(error,.90)),
+                       "position_balanced_mean":position_mean}
+    # Independent target-only, non-parametric baseline.
+    nn_dist=cdist(xq,xt)
+    neighbors=np.argsort(nn_dist,axis=1)[:,:min(3,len(xt))]
+    d=np.take_along_axis(nn_dist,neighbors,axis=1)
+    weights=1/np.maximum(d,1e-4)**2
+    weights=weights/weights.sum(axis=1,keepdims=True)
+    target_coordinates=t[XY].to_numpy()
+    wknn_pred=(target_coordinates[neighbors]*weights[:,:,None]).sum(axis=1)
+    err=np.linalg.norm(wknn_pred-q[XY].to_numpy(),axis=1)
+    metrics["target_wknn"]={"mean":float(err.mean()),"median":float(np.median(err)),
+                            "p90":float(np.quantile(err,.90)),
+                            "position_balanced_mean":float(pd.Series(err,index=q.pos.to_numpy()).groupby(level=0).mean().mean())}
     return {"num_shared_visible_ap_from_support":int((s_visible&t_visible).sum()),
             "num_features":count,"length":length,"selected_rho":chosen,
             "target_label_evidence":{str(x):lml[x] for x in RHO_GRID},
@@ -190,6 +204,11 @@ def main():
     ]
     if args.quick:
         cases=cases[:2]+cases[4:5]
+    # Repeated independent target splits, matched within each source/target comparison.
+    seeds=[20261013] if args.quick else list(range(20261013,20261018))
+    cases=[(name,src,tgt,floor,k,seed,paper,modes)
+           for seed in seeds
+           for name,src,tgt,floor,k,_seed,paper,modes in cases]
     rows=[]
     for task,s,t,f,k,seed,paper,modes in cases:
         for mode in modes:
@@ -200,7 +219,7 @@ def main():
                 brief["errors"]={k:round(v["mean"],3) for k,v in row["metrics"].items()}
                 print(json.dumps(brief),flush=True)
     with (args.out/"results.json").open("w") as f:
-        json.dump({"profile":"quick_pilot" if args.quick else "single_seed_pilot",
+        json.dump({"profile":"quick_pilot" if args.quick else "five_independent_splits_pilot",
                    "official_zip_sha256":ZIP_HASH,
                    "source":"UCI official trainingData.csv only",
                    "method":"fixed-RBF conditional two-task GP; rho selected by target-label evidence",
@@ -209,12 +228,30 @@ def main():
                    "output_coordinate_policy":"task-specific mean of observed labels; common fixed 50-unit scale",
                    "elapsed_seconds":round(time.monotonic()-start,2),
                    "rows":rows},f,indent=2,ensure_ascii=False)
-    pd.DataFrame([{"task":r["task"],"mode":r["feature_mode"],"K":r["budget"],
+    summary=pd.DataFrame([{"task":r["task"],"mode":r["feature_mode"],"K":r["budget"],
+                   "seed":r["seed"],
                    "overlap_query_fraction":r["support_query_position_overlap_fraction"],
                    "shared_AP":r["num_shared_visible_ap_from_support"],
                    "selected_rho":r["selected_rho"],
-                   **{name:score["mean"] for name,score in r["metrics"].items()}}
-                  for r in rows]).to_csv(args.out/"summary.csv",index=False)
+                   **{name:score["mean"] for name,score in r["metrics"].items()},
+                   **{name+"_position_balanced":score["position_balanced_mean"]
+                      for name,score in r["metrics"].items()}}
+                  for r in rows])
+    summary["transfer_minus_target"]=summary.transfer_evidence_gp-summary.target_gp
+    summary["transfer_minus_wknn"]=summary.transfer_evidence_gp-summary.target_wknn
+    summary.to_csv(args.out/"summary.csv",index=False)
+    aggregate=summary.groupby(["task","mode","K"],as_index=False).agg(
+        seeds=("seed","nunique"),
+        target_gp_mean=("target_gp","mean"),target_gp_sd=("target_gp","std"),
+        pooled_gp_mean=("pooled_residual_gp","mean"),
+        transfer_gp_mean=("transfer_evidence_gp","mean"),transfer_gp_sd=("transfer_evidence_gp","std"),
+        wknn_mean=("target_wknn","mean"),wknn_sd=("target_wknn","std"),
+        transfer_minus_target_mean=("transfer_minus_target","mean"),
+        transfer_minus_wknn_mean=("transfer_minus_wknn","mean"),
+        transfer_beats_target_rate=("transfer_minus_target",lambda x:float((x<0).mean())),
+        transfer_beats_wknn_rate=("transfer_minus_wknn",lambda x:float((x<0).mean())),
+        support_query_overlap_mean=("overlap_query_fraction","mean"))
+    aggregate.to_csv(args.out/"aggregate.csv",index=False)
     print("EXPERIMENT_OK rows=",len(rows),"elapsed_seconds=",round(time.monotonic()-start,2),flush=True)
 
 if __name__=="__main__":
