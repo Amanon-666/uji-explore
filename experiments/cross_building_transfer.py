@@ -141,6 +141,9 @@ def transfer_gp(s: pd.DataFrame, t: pd.DataFrame, q: pd.DataFrame, mode: str):
         lml[rho]=float(-.5*np.sum(innovation*alpha)-len(yt[0])*.5*logdet)
     chosen=max(RHO_GRID,key=lambda x:lml[x])
     actual=q[XY].to_numpy()
+    # Query-oracle is strictly offline analysis, NEVER used to select rho.
+    query_rho_error={rho:float(np.linalg.norm(pred-actual,axis=1).mean())
+                     for rho,pred in results.items()}
     metrics={}
     for name,rho in [("target_gp",0.0),("pooled_residual_gp",1.0),
                      ("transfer_evidence_gp",chosen)]:
@@ -164,16 +167,24 @@ def transfer_gp(s: pd.DataFrame, t: pd.DataFrame, q: pd.DataFrame, mode: str):
     return {"num_shared_visible_ap_from_support":int((s_visible&t_visible).sum()),
             "num_features":count,"length":length,"selected_rho":chosen,
             "target_label_evidence":{str(x):lml[x] for x in RHO_GRID},
+            "rho_query_error_diagnostic_only":{str(x):query_rho_error[x] for x in RHO_GRID},
+            "oracle_best_rho_diagnostic_only":min(RHO_GRID,key=lambda x:query_rho_error[x]),
             "metrics":metrics}
 
-def evaluate(df, task, source, target, floor, budget, seed, paper_like, mode):
+def evaluate(df, task, source, target, floor, budget, seed, paper_like, mode, shuffle=False):
     s,t,q=choose_rows(df,source,target,floor,budget,seed,paper_like)
+    if shuffle:
+        # Counterfactual: destroy only the source RSS-to-position correspondence.
+        s=s.copy()
+        perm=np.random.default_rng(seed+120000).permutation(len(s))
+        s.loc[:,XY]=s[XY].to_numpy()[perm]
     answer=transfer_gp(s,t,q,mode)
     if answer is None:
         return None
     overlap=bool(set(t.pos)&set(q.pos))
     overlap_frac=float(q.pos.isin(set(t.pos)).mean())
     return {"task":task,"feature_mode":mode,"budget":budget,"seed":seed,
+            "source_labels_shuffled":shuffle,
             "protocol":"paper_like_records" if paper_like else "strict_distinct_positions",
             "source_rows":len(s),"target_support_rows":len(t),
             "support_unique_positions":t.pos.nunique(),"query_rows":len(q),
@@ -209,10 +220,16 @@ def main():
     cases=[(name,src,tgt,floor,k,seed,paper,modes)
            for seed in seeds
            for name,src,tgt,floor,k,_seed,paper,modes in cases]
+    # Same target support and query in real-vs-shuffled source comparison.
+    cases=[(*case,False) for case in cases]+[
+        (*case,True) for case in cases
+        if case[0] in ("B1_to_B2_strict","B1_other_floors_to_F3","B2_other_floors_to_F4")]
     rows=[]
-    for task,s,t,f,k,seed,paper,modes in cases:
+    for task,s,t,f,k,seed,paper,modes,shuffle in cases:
         for mode in modes:
-            row=evaluate(df,task,s,t,f,k,seed,paper,mode)
+            if shuffle and mode != "all":
+                continue
+            row=evaluate(df,task,s,t,f,k,seed,paper,mode,shuffle=shuffle)
             if row is not None:
                 rows.append(row)
                 brief={key:row[key] for key in ("task","feature_mode","selected_rho","budget")}
@@ -224,12 +241,13 @@ def main():
                    "source":"UCI official trainingData.csv only",
                    "method":"fixed-RBF conditional two-task GP; rho selected by target-label evidence",
                    "not_reproduced":"AAMAS 2020 TNKN architecture, its preprocessing/normalization, and its scalar RMSE",
+                   "ablation":"source RSS-to-coordinate pairing permuted for selected tasks; rho oracle is evaluation-only",
                    "target_label_policy":"only K target labels; unseen query labels only for error evaluation",
                    "output_coordinate_policy":"task-specific mean of observed labels; common fixed 50-unit scale",
                    "elapsed_seconds":round(time.monotonic()-start,2),
                    "rows":rows},f,indent=2,ensure_ascii=False)
     summary=pd.DataFrame([{"task":r["task"],"mode":r["feature_mode"],"K":r["budget"],
-                   "seed":r["seed"],
+                   "seed":r["seed"],"source_labels_shuffled":r["source_labels_shuffled"],
                    "overlap_query_fraction":r["support_query_position_overlap_fraction"],
                    "shared_AP":r["num_shared_visible_ap_from_support"],
                    "selected_rho":r["selected_rho"],
@@ -240,7 +258,7 @@ def main():
     summary["transfer_minus_target"]=summary.transfer_evidence_gp-summary.target_gp
     summary["transfer_minus_wknn"]=summary.transfer_evidence_gp-summary.target_wknn
     summary.to_csv(args.out/"summary.csv",index=False)
-    aggregate=summary.groupby(["task","mode","K"],as_index=False).agg(
+    aggregate=summary.groupby(["task","mode","K","source_labels_shuffled"],as_index=False).agg(
         seeds=("seed","nunique"),
         target_gp_mean=("target_gp","mean"),target_gp_sd=("target_gp","std"),
         pooled_gp_mean=("pooled_residual_gp","mean"),
