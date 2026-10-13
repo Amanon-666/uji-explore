@@ -1,0 +1,41 @@
+name: UJI cross-building transfer GP pilot
+on:
+  push:
+    branches: [cross-building-transfer-audit]
+    paths:
+      - experiments/cross_building_transfer.py
+      - .github/workflows/cross-building-transfer.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  transfer-gp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install numerical dependencies
+        run: python -m pip install 'numpy>=1.24,<3' 'pandas>=2,<3' 'scipy>=1.10,<2'
+      - name: Run official-UJI pilot
+        env:
+          OPENBLAS_NUM_THREADS: '2'
+          OMP_NUM_THREADS: '2'
+        run: python experiments/cross_building_transfer.py --out reports/cross_building_transfer
+      - name: Upload results even if later commit fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uji-cross-building-transfer-pilot
+          path: reports/cross_building_transfer/
+          retention-days: 30
+      - name: Commit small public research results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/cross_building_transfer/results.json reports/cross_building_transfer/summary.csv
+          git diff --cached --quiet || (git commit -m "Record measured UJI cross-building transfer GP pilot" && git push)
