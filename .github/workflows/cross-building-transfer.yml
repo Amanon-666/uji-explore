@@ -37,5 +37,5 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add reports/cross_building_transfer/results.json reports/cross_building_transfer/summary.csv
+          git add reports/cross_building_transfer/results.json reports/cross_building_transfer/summary.csv reports/cross_building_transfer/aggregate.csv
           git diff --cached --quiet || (git commit -m "Record measured UJI cross-building transfer GP pilot" && git push)
