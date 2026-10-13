@@ -43,7 +43,10 @@ def read_uji(cache: Path) -> pd.DataFrame:
         frame = pd.read_csv(archive.open("UJIndoorLoc/trainingData.csv"))
     if len(frame) != 19937 or list(frame.columns[:520]) != WAPS:
         raise ValueError("Unexpected trainingData CSV")
-    frame["pos"] = (frame.LONGITUDE.round(1).astype(str)
+    # One reference location is BUILDING + FLOOR + horizontal coordinates;
+    # identical planar coordinates on different floors are different locations.
+    frame["pos"] = (frame.BUILDINGID.astype(str) + "|" + frame.FLOOR.astype(str)
+                    + "|" + frame.LONGITUDE.round(1).astype(str)
                     + "|" + frame.LATITUDE.round(1).astype(str))
     frame["domain"] = "B" + frame.BUILDINGID.astype(str) + "F" + frame.FLOOR.astype(str)
     return frame

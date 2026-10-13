@@ -42,13 +42,28 @@ def describe(df,src_id,tgt_id,floor,K,seed):
     # the observed target support centroid, explicitly not test-trained.
     t_center=t[XY].to_numpy().mean(axis=0)
     source_only_error=np.linalg.norm(Y_SCALE*pred_s_q+t_center-q[XY].to_numpy(),axis=1).mean()
+    # Diagnose an omitted degree of freedom of the pilot: signed rho in [-1,1].
+    # The AAMAS TNKN kernel allows signed cross-domain coefficients.
+    signed=None
+    if floor is None:
+        import experiments.cross_building_transfer as gp_module
+        old_grid=gp_module.RHO_GRID
+        gp_module.RHO_GRID=(-1.0,-.75,-.5,-.25,0.0,.25,.5,.75,1.0)
+        try:
+            signed=gp_module.transfer_gp(s,t,q,"all")
+        finally:
+            gp_module.RHO_GRID=old_grid
     target_centroid_error=np.linalg.norm(t_center-q[XY].to_numpy(),axis=1).mean()
     source_support_error=np.linalg.norm(pred_s_t-yt,axis=1).mean()*Y_SCALE
     target_support_centroid_error=np.linalg.norm(yt,axis=1).mean()*Y_SCALE
     # Check labels/coordinates of a *building-wide* group that can contain
     # several physical floors in the same planar location.
     groups=q.groupby("pos").FLOOR.nunique()
-    all_groups=(df[df.BUILDINGID==tgt_id].groupby("pos").FLOOR.nunique())
+    target_building=df[df.BUILDINGID==tgt_id].copy()
+    # Independently audit reused *planar* coordinates across floors.
+    target_building["planar_pos"]=(target_building.LONGITUDE.round(1).astype(str)
+                                  +"|"+target_building.LATITUDE.round(1).astype(str))
+    all_groups=target_building.groupby("planar_pos").FLOOR.nunique()
     samefloor_mode=floor is not None
     ss=np.median(ds[ds>1e-8])
     return {"source":src_id,"target":tgt_id,"target_floor":floor,"K":K,
@@ -64,6 +79,10 @@ def describe(df,src_id,tgt_id,floor,K,seed):
             "cross_kernel_gt_0p1_fraction":float((kst>.1).mean()),
             "target_kernel_off_diagonal_median":float(np.median(ktt[~np.eye(len(t),dtype=bool)])),
             "source_only_query_MDE":float(source_only_error),
+            "signed_rho_target_evidence_selected":signed["selected_rho"] if signed is not None else None,
+            "signed_rho_query_oracle_selected":signed["oracle_best_rho_diagnostic_only"] if signed is not None else None,
+            "signed_rho_evidence_selected_MDE":signed["metrics"]["transfer_evidence_gp"]["mean"] if signed is not None else None,
+            "signed_rho_query_oracle_MDE":min(signed["rho_query_error_diagnostic_only"].values()) if signed is not None else None,
             "centroid_only_query_MDE":float(target_centroid_error),
             "source_only_support_MDE":float(source_support_error),
             "centroid_only_support_MDE":float(target_support_centroid_error),
